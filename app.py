@@ -50,8 +50,8 @@ CATEGORY_LABELS = {
     "business":   "日常業務",
     "arch":       "建築設計",
     "pr":         "広報・PR",
-    "hr":         "採用・HR",
-    "ops":        "運営・Ops",
+    "hr":         "採用・人材",
+    "ops":        "現場運営",
 }
 
 SYSTEM_PROMPT = """あなたはワカヤマヤモリ舎（和歌山市のエリアプロデュース会社）のAIエージェントです。
