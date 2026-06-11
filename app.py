@@ -142,6 +142,16 @@ def main():
         layout="wide",
     )
 
+    st.markdown("""
+        <style>
+        .stMarkdown h1 { font-size: 1.4rem !important; }
+        .stMarkdown h2 { font-size: 1.2rem !important; }
+        .stMarkdown h3 { font-size: 1.0rem !important; }
+        .stMarkdown h4 { font-size: 0.95rem !important; }
+        .stMarkdown p, .stMarkdown li { font-size: 0.9rem !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
     check_password()
 
     st.markdown(
