@@ -117,7 +117,7 @@ def check_password():
         return
 
     st.markdown(
-        "<h1 style='font-size:160%;line-height:1.4;'>ワカヤマヤモリ舎<br>AI Agent</h1>",
+        "<h1 style='font-size:160%;line-height:1.4;'>AI Agent<br><span style='font-size:70%;'>for Wakayama Yamorisha Co., Ltd.</span></h1>",
         unsafe_allow_html=True,
     )
     st.markdown("---")
@@ -145,7 +145,7 @@ def main():
     check_password()
 
     st.markdown(
-        "<h1 style='font-size:160%;line-height:1.4;'>ワカヤマヤモリ舎<br>AI Agent</h1>",
+        "<h1 style='font-size:160%;line-height:1.4;'>AI Agent<br><span style='font-size:70%;'>for Wakayama Yamorisha Co., Ltd.</span></h1>",
         unsafe_allow_html=True,
     )
     st.markdown("---")
