@@ -122,7 +122,7 @@ def check_password():
     )
     st.markdown("---")
     pw = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
-    if st.button("入室する", type="primary"):
+    if st.button("ログイン", type="primary"):
         correct = st.secrets.get("PASSWORD", "")
         if pw == correct:
             st.session_state.authenticated = True
