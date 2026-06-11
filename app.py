@@ -285,10 +285,15 @@ def main():
                         try:
                             response = stream_response(client, st.session_state.messages)
                             st.session_state.messages.append({"role": "assistant", "content": response})
-                            # Google Driveに自動保存
-                            drive_url = save_to_drive(response, selected_cat, selected_cmd)
-                            if drive_url:
-                                st.success(f"[Google Driveに保存しました]({drive_url})")
+                            # ダウンロードボタン
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                            filename = f"{selected_cat}_{selected_cmd}_{timestamp}.md"
+                            st.download_button(
+                                label="ファイルをダウンロード (.md)",
+                                data=response.encode("utf-8"),
+                                file_name=filename,
+                                mime="text/markdown",
+                            )
                         except anthropic.APIError as e:
                             st.error(f"APIエラー: {e}")
 
