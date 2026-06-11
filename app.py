@@ -219,7 +219,7 @@ def main():
                 try:
                     with client.messages.stream(
                         model="claude-sonnet-4-6",
-                        max_tokens=8192,
+                        max_tokens=16000,
                         system=SYSTEM_PROMPT,
                         messages=[{"role": "user", "content": full_prompt}],
                     ) as stream:
