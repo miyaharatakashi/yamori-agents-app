@@ -1,8 +1,13 @@
 import re
+import io
+from datetime import datetime
 from pathlib import Path
 
 import anthropic
 import streamlit as st
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # ---------------------------------------------------------------------------
 # 定数
@@ -53,6 +58,8 @@ CATEGORY_LABELS = {
     "hr":         "採用・人材",
     "ops":        "現場運営",
 }
+
+DRIVE_FOLDER_ID = "1uppvoXFMxclbDMhMVeKniTgIHlw585do"
 
 SYSTEM_PROMPT = """あなたはワカヤマヤモリ舎（和歌山市のエリアプロデュース会社）のAIエージェントです。
 Vision「まちを元気に、もっとおもしろく」のもと、地域に根ざした提案を行ってください。
@@ -105,6 +112,41 @@ def load_commands() -> dict:
         if cmds:
             result[cat] = cmds
     return result
+
+
+def save_to_drive(content: str, category: str, command: str) -> str | None:
+    """Google DriveにMarkdownファイルを保存してURLを返す"""
+    try:
+        import json
+        creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS_JSON"])
+        creds = service_account.Credentials.from_service_account_info(
+            creds_info,
+            scopes=["https://www.googleapis.com/auth/drive.file"],
+        )
+        service = build("drive", "v3", credentials=creds)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        filename = f"{category}_{command}_{timestamp}.md"
+
+        file_metadata = {
+            "name": filename,
+            "parents": [DRIVE_FOLDER_ID],
+            "mimeType": "text/plain",
+        }
+        media = MediaIoBaseUpload(
+            io.BytesIO(content.encode("utf-8")),
+            mimetype="text/plain",
+        )
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id, webViewLink",
+        ).execute()
+
+        return file.get("webViewLink")
+    except Exception as e:
+        st.warning(f"Drive保存に失敗しました: {e}")
+        return None
 
 
 def stream_response(client: anthropic.Anthropic, messages: list) -> str:
@@ -242,6 +284,10 @@ def main():
                         try:
                             response = stream_response(client, st.session_state.messages)
                             st.session_state.messages.append({"role": "assistant", "content": response})
+                            # Google Driveに自動保存
+                            drive_url = save_to_drive(response, selected_cat, selected_cmd)
+                            if drive_url:
+                                st.success(f"[Google Driveに保存しました]({drive_url})")
                         except anthropic.APIError as e:
                             st.error(f"APIエラー: {e}")
 
