@@ -116,7 +116,10 @@ def check_password():
     if st.session_state.get("authenticated"):
         return
 
-    st.title("ワカヤマヤモリ舎 AIエージェント")
+    st.markdown(
+        "<h1 style='font-size:80%;line-height:1.4;'>ワカヤマヤモリ舎<br>AIエージェント</h1>",
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
     pw = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
     if st.button("入室する", type="primary"):
@@ -141,7 +144,10 @@ def main():
 
     check_password()
 
-    st.title("ワカヤマヤモリ舎 AIエージェント")
+    st.markdown(
+        "<h1 style='font-size:80%;line-height:1.4;'>ワカヤマヤモリ舎<br>AIエージェント</h1>",
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
     commands = load_commands()
