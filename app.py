@@ -1,13 +1,11 @@
 import re
 import io
+import json
 from datetime import datetime
 from pathlib import Path
 
 import anthropic
 import streamlit as st
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 
 # ---------------------------------------------------------------------------
 # 定数
@@ -117,7 +115,10 @@ def load_commands() -> dict:
 def save_to_drive(content: str, category: str, command: str) -> str | None:
     """Google DriveにMarkdownファイルを保存してURLを返す"""
     try:
-        import json
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaIoBaseUpload
+
         creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS_JSON"])
         creds = service_account.Credentials.from_service_account_info(
             creds_info,
