@@ -99,13 +99,28 @@ def load_commands() -> dict:
         if not cat_dir.exists():
             continue
         cmds = {}
-        # run.md を先頭に、残りはアルファベット順
         files = sorted(cat_dir.glob("*.md"), key=lambda p: (p.stem != "run", p.stem))
         for f in files:
             cmds[f.stem] = parse_md(f)
         if cmds:
             result[cat] = cmds
     return result
+
+
+def stream_response(client: anthropic.Anthropic, messages: list) -> str:
+    """APIを呼び出してストリーミングで返す"""
+    full_response = ""
+    placeholder = st.empty()
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=16000,
+        system=SYSTEM_PROMPT,
+        messages=messages,
+    ) as stream:
+        for text in stream.text_stream:
+            full_response += text
+            placeholder.markdown(full_response)
+    return full_response
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +181,10 @@ def main():
         st.error(f"コマンドファイルが見つかりません。\nパス: `{COMMANDS_DIR}`")
         st.stop()
 
+    # セッション初期化
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
     col1, col2 = st.columns([1, 2])
 
     with col1:
@@ -184,7 +203,6 @@ def main():
         )
 
         cmd_data = cmds[selected_cmd]
-
         st.info(cmd_data["description"])
 
         # 入力フォーム
@@ -196,44 +214,42 @@ def main():
 
         run = st.button("実行する", type="primary", use_container_width=True)
 
+        # 会話リセットボタン（会話中のみ表示）
+        if st.session_state.messages:
+            if st.button("会話をリセット", use_container_width=True):
+                st.session_state.messages = []
+                st.rerun()
+
     with col2:
         st.subheader("結果")
 
+        try:
+            client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+        except Exception:
+            st.error("APIキーが設定されていません。")
+            return
+
+        # 実行ボタン押下：新しい会話を開始
         if run:
             if not user_input.strip():
                 st.warning("入力内容を記入してください")
-                return
+            else:
+                full_prompt = cmd_data["prompt"].replace("$ARGUMENTS", user_input)
+                st.session_state.messages = [{"role": "user", "content": full_prompt}]
 
-            full_prompt = cmd_data["prompt"].replace("$ARGUMENTS", user_input)
+                with st.chat_message("assistant"):
+                    with st.spinner("実行中..."):
+                        try:
+                            response = stream_response(client, st.session_state.messages)
+                            st.session_state.messages.append({"role": "assistant", "content": response})
+                        except anthropic.APIError as e:
+                            st.error(f"APIエラー: {e}")
 
-            try:
-                client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
-            except Exception:
-                st.error("APIキーが設定されていません。.streamlit/secrets.toml を確認してください。")
-                return
-
-            output_area = st.empty()
-            full_response = ""
-
-            with st.spinner("実行中..."):
-                try:
-                    with client.messages.stream(
-                        model="claude-sonnet-4-6",
-                        max_tokens=16000,
-                        system=SYSTEM_PROMPT,
-                        messages=[{"role": "user", "content": full_prompt}],
-                    ) as stream:
-                        for text in stream.text_stream:
-                            full_response += text
-                            output_area.markdown(full_response)
-                except anthropic.APIError as e:
-                    st.error(f"APIエラー: {e}")
-                    return
-
-            st.success("完了しました")
-
-            with st.expander("テキストをコピー"):
-                st.code(full_response, language=None)
+        # 会話履歴の表示（初回以降のメッセージ）
+        elif st.session_state.messages:
+            for msg in st.session_state.messages[1:]:  # 最初のシステムプロンプトはスキップ
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
 
         else:
             st.markdown(
@@ -242,6 +258,21 @@ def main():
                 "</div>",
                 unsafe_allow_html=True,
             )
+
+        # チャット入力（会話中のみ表示）
+        if st.session_state.messages:
+            if follow_up := st.chat_input("追加の質問・深掘りを入力してください"):
+                st.session_state.messages.append({"role": "user", "content": follow_up})
+
+                with st.chat_message("user"):
+                    st.markdown(follow_up)
+
+                with st.chat_message("assistant"):
+                    try:
+                        response = stream_response(client, st.session_state.messages)
+                        st.session_state.messages.append({"role": "assistant", "content": response})
+                    except anthropic.APIError as e:
+                        st.error(f"APIエラー: {e}")
 
 
 if __name__ == "__main__":
