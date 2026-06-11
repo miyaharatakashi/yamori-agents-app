@@ -12,6 +12,37 @@ COMMANDS_DIR = Path(__file__).resolve().parent / "commands"
 
 CATEGORY_ORDER = ["strategy", "biz-dev", "management", "business", "arch", "pr", "hr", "ops"]
 
+CMD_LABELS = {
+    "run":           "全工程実行",
+    "planning":      "企画立案",
+    "validate":      "事業検証",
+    "financials":    "収支計画",
+    "critic":        "批判・レビュー",
+    "proposal":      "企画書作成",
+    "research":      "リサーチ",
+    "analyze":       "分析",
+    "strategist":    "戦略立案",
+    "report":        "レポート作成",
+    "gather":        "数値収集",
+    "issues":        "課題抽出",
+    "minutes":       "議事録作成",
+    "finance":       "財務分析",
+    "strategy":      "事業戦略",
+    "hearing":       "ヒアリング",
+    "code-check":    "法規確認",
+    "concept":       "コンセプト立案",
+    "design-review": "設計レビュー",
+    "checkin":       "チェックイン対応",
+    "trouble":       "トラブル対応",
+    "daily":         "日報・週報作成",
+    "shift":         "シフト管理",
+    "onboarding":    "オンボーディング",
+    "interview":     "面接サポート",
+    "job-post":      "求人票作成",
+    "sns":           "SNS投稿文作成",
+    "event":         "イベント企画",
+}
+
 CATEGORY_LABELS = {
     "strategy":   "経営戦略",
     "biz-dev":    "事業開発",
@@ -130,14 +161,10 @@ def main():
 
         # コマンド選択
         cmds = commands[selected_cat]
-        cmd_options = {
-            stem: f"{'全工程実行  ' if stem == 'run' else ''}{data['description']}"
-            for stem, data in cmds.items()
-        }
         selected_cmd = st.selectbox(
             "コマンド",
-            list(cmd_options.keys()),
-            format_func=lambda k: cmd_options[k],
+            list(cmds.keys()),
+            format_func=lambda k: CMD_LABELS.get(k, k),
         )
 
         cmd_data = cmds[selected_cmd]
