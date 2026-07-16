@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import re
 import io
 import json
+import base64
 from datetime import datetime
 from pathlib import Path
 
@@ -153,6 +156,66 @@ def save_to_drive(content: str, category: str, command: str) -> str | None:
         return None
 
 
+IMAGE_MIME = {
+    "png":  "image/png",
+    "jpg":  "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif":  "image/gif",
+    "webp": "image/webp",
+}
+TEXT_EXTS = {"txt", "md", "csv", "json", "log", "py", "html", "css", "js", "tsv", "yaml", "yml"}
+
+
+def build_user_content(text: str, uploaded_files: list):
+    """入力テキストとアップロードファイルをClaude API用のcontentへ変換する。
+
+    ファイルが無ければ従来通り文字列を返す。ファイルがあればブロックのリストを返す。
+    """
+    if not uploaded_files:
+        return text
+
+    blocks = []
+    text_snippets = []
+
+    for f in uploaded_files:
+        ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
+        data = f.getvalue()
+
+        if ext in IMAGE_MIME:
+            blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": IMAGE_MIME[ext],
+                    "data": base64.standard_b64encode(data).decode("utf-8"),
+                },
+            })
+        elif ext == "pdf":
+            blocks.append({
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.standard_b64encode(data).decode("utf-8"),
+                },
+            })
+        elif ext in TEXT_EXTS:
+            try:
+                content = data.decode("utf-8")
+            except UnicodeDecodeError:
+                content = data.decode("utf-8", errors="replace")
+            text_snippets.append(f"--- 添付ファイル: {f.name} ---\n{content}\n--- ここまで ---")
+        else:
+            text_snippets.append(f"（添付ファイル「{f.name}」は未対応の形式のため読み込めませんでした）")
+
+    # テキスト系ファイルの中身と入力テキストをまとめて末尾のテキストブロックに
+    combined_text = "\n\n".join(text_snippets + ([text] if text else []))
+    if combined_text.strip():
+        blocks.append({"type": "text", "text": combined_text})
+
+    return blocks
+
+
 def stream_response(client: anthropic.Anthropic, messages: list) -> str:
     """APIを呼び出してストリーミングで返す"""
     full_response = ""
@@ -258,6 +321,15 @@ def main():
             height=250,
         )
 
+        uploaded_files = st.file_uploader(
+            "ファイルを添付（任意）",
+            type=["png", "jpg", "jpeg", "gif", "webp", "pdf",
+                  "txt", "md", "csv", "json", "log", "py",
+                  "html", "css", "js", "tsv", "yaml", "yml"],
+            accept_multiple_files=True,
+            help="画像・PDF・テキスト系ファイルを添付できます",
+        )
+
         run = st.button("実行する", type="primary", use_container_width=True)
 
         # 会話リセットボタン（会話中のみ表示）
@@ -277,11 +349,12 @@ def main():
 
         # 実行ボタン押下：新しい会話を開始
         if run:
-            if not user_input.strip():
-                st.warning("入力内容を記入してください")
+            if not user_input.strip() and not uploaded_files:
+                st.warning("入力内容を記入するか、ファイルを添付してください")
             else:
                 full_prompt = cmd_data["prompt"].replace("$ARGUMENTS", user_input)
-                st.session_state.messages = [{"role": "user", "content": full_prompt}]
+                content = build_user_content(full_prompt, uploaded_files)
+                st.session_state.messages = [{"role": "user", "content": content}]
 
                 with st.chat_message("assistant"):
                     with st.spinner("実行中..."):
