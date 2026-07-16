@@ -216,15 +216,31 @@ def build_user_content(text: str, uploaded_files: list):
     return blocks
 
 
+def display_text(text: str, uploaded_files: list) -> str:
+    """チャット履歴に表示する用のテキスト（ユーザーが打った文＋添付ファイル名）。
+
+    ファイル本文はここには含めず、ファイル名だけを📎で示す。
+    """
+    parts = []
+    if text and text.strip():
+        parts.append(text.strip())
+    if uploaded_files:
+        names = "、".join(f.name for f in uploaded_files)
+        parts.append(f"📎 添付: {names}")
+    return "\n\n".join(parts) if parts else "（ファイルのみ）"
+
+
 def stream_response(client: anthropic.Anthropic, messages: list) -> str:
     """APIを呼び出してストリーミングで返す"""
+    # APIに渡すのは role / content のみ（表示用の追加キーは除去）
+    api_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
     full_response = ""
     placeholder = st.empty()
     with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=16000,
         system=SYSTEM_PROMPT,
-        messages=messages,
+        messages=api_messages,
     ) as stream:
         for text in stream.text_stream:
             full_response += text
@@ -347,60 +363,87 @@ def main():
             st.error("APIキーが設定されていません。")
             return
 
-        # 実行ボタン押下：新しい会話を開始
+        # 実行ボタン押下：新しい会話を開始（新しいユーザー発話を積むだけ）
         if run:
             if not user_input.strip() and not uploaded_files:
                 st.warning("入力内容を記入するか、ファイルを添付してください")
             else:
                 full_prompt = cmd_data["prompt"].replace("$ARGUMENTS", user_input)
                 content = build_user_content(full_prompt, uploaded_files)
-                st.session_state.messages = [{"role": "user", "content": content}]
+                st.session_state.messages = [{
+                    "role": "user",
+                    "content": content,
+                    "display": None,  # 初回のコマンドプロンプトは表示しない
+                }]
 
-                with st.chat_message("assistant"):
-                    with st.spinner("実行中..."):
-                        try:
-                            response = stream_response(client, st.session_state.messages)
-                            st.session_state.messages.append({"role": "assistant", "content": response})
-                            # ダウンロードボタン
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                            filename = f"{selected_cat}_{selected_cmd}_{timestamp}.md"
-                            st.download_button(
-                                label="ファイルをダウンロード (.md)",
-                                data=response.encode("utf-8"),
-                                file_name=filename,
-                                mime="text/markdown",
-                            )
-                        except anthropic.APIError as e:
-                            st.error(f"APIエラー: {e}")
-
-        # 会話履歴の表示（初回以降のメッセージ）
-        elif st.session_state.messages:
-            for msg in st.session_state.messages[1:]:  # 最初のシステムプロンプトはスキップ
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
-
-        else:
+        if not st.session_state.messages:
             st.markdown(
                 "<div style='color:#aaa;padding:2rem;text-align:center;'>"
                 "左でカテゴリ・コマンドを選んで<br>入力内容を記入し「実行する」を押してください"
                 "</div>",
                 unsafe_allow_html=True,
             )
+        else:
+            # 会話履歴の表示（display が None のメッセージ＝初回コマンドは非表示）
+            for i, msg in enumerate(st.session_state.messages):
+                if msg["role"] == "user" and msg.get("display") is None:
+                    continue
+                with st.chat_message(msg["role"]):
+                    if msg["role"] == "user":
+                        st.markdown(msg["display"])
+                    else:
+                        st.markdown(msg["content"])
+                        # 各アシスタント応答にダウンロードボタン
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                        filename = f"{selected_cat}_{selected_cmd}_{timestamp}.md"
+                        st.download_button(
+                            label="ファイルをダウンロード (.md)",
+                            data=msg["content"].encode("utf-8"),
+                            file_name=filename,
+                            mime="text/markdown",
+                            key=f"dl_{i}",
+                        )
 
-        # チャット入力（会話中のみ表示）
-        if st.session_state.messages:
-            if follow_up := st.chat_input("追加の質問・深掘りを入力してください"):
-                st.session_state.messages.append({"role": "user", "content": follow_up})
-
-                with st.chat_message("user"):
-                    st.markdown(follow_up)
-
+            # 最後がユーザー発話なら応答を生成
+            if st.session_state.messages[-1]["role"] == "user":
                 with st.chat_message("assistant"):
-                    try:
-                        response = stream_response(client, st.session_state.messages)
-                        st.session_state.messages.append({"role": "assistant", "content": response})
-                    except anthropic.APIError as e:
-                        st.error(f"APIエラー: {e}")
+                    with st.spinner("実行中..."):
+                        try:
+                            response = stream_response(client, st.session_state.messages)
+                            st.session_state.messages.append(
+                                {"role": "assistant", "content": response}
+                            )
+                            st.rerun()
+                        except anthropic.APIError as e:
+                            st.error(f"APIエラー: {e}")
+
+            # フォローアップ入力（会話の後に配置・ファイル添付対応）
+            with st.form("followup_form", clear_on_submit=True):
+                follow_up = st.text_area(
+                    "追加の質問・深掘り",
+                    placeholder="追加の質問・深掘りを入力してください（ファイル添付も可）",
+                    height=100,
+                )
+                follow_files = st.file_uploader(
+                    "ファイルを添付（任意）",
+                    type=["png", "jpg", "jpeg", "gif", "webp", "pdf",
+                          "txt", "md", "csv", "json", "log", "py",
+                          "html", "css", "js", "tsv", "yaml", "yml"],
+                    accept_multiple_files=True,
+                    key="follow_files",
+                )
+                submitted = st.form_submit_button("送信", type="primary", use_container_width=True)
+
+            if submitted:
+                if not follow_up.strip() and not follow_files:
+                    st.warning("質問を入力するか、ファイルを添付してください")
+                else:
+                    st.session_state.messages.append({
+                        "role": "user",
+                        "content": build_user_content(follow_up, follow_files),
+                        "display": display_text(follow_up, follow_files),
+                    })
+                    st.rerun()
 
 
 if __name__ == "__main__":
