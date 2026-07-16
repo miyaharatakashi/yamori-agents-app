@@ -13,7 +13,7 @@ import streamlit as st
 
 COMMANDS_DIR = Path(__file__).resolve().parent / "commands"
 
-CATEGORY_ORDER = ["strategy", "biz-dev", "management", "business", "arch", "pr", "hr", "ops"]
+CATEGORY_ORDER = ["strategy", "biz-dev", "management", "business", "arch", "pr", "hr", "ops", "free"]
 
 CMD_LABELS = {
     "run":           "全工程実行",
@@ -44,6 +44,8 @@ CMD_LABELS = {
     "job-post":      "求人票作成",
     "sns":           "SNS投稿文作成",
     "event":         "イベント企画",
+    "code":          "コード生成・ツール開発",
+    "general":       "自由相談・なんでも",
 }
 
 CATEGORY_LABELS = {
@@ -55,6 +57,7 @@ CATEGORY_LABELS = {
     "pr":         "広報・PR",
     "hr":         "採用・人材",
     "ops":        "現場運営",
+    "free":       "その他・自由入力",
 }
 
 DRIVE_FOLDER_ID = "1uppvoXFMxclbDMhMVeKniTgIHlw585do"
